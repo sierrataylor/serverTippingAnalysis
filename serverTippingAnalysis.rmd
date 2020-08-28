@@ -1,0 +1,526 @@
+---
+title: "Tipping Statistics"
+output: html_notebook
+---
+-By: Adam Brennan and Semaan Boutros
+```{r}
+#install.packages(c("tidyverse", "ggplot2", "partykit", "dplyr", "tidytext", "dendextend"))
+```
+
+```{r}
+library(partykit)
+library(dplyr)
+library(tidytext)
+library(tidyverse)
+library(dendextend)
+library(ggplot2)
+```
+
+
+```{r}
+tips <- read.csv("tips.csv")
+server_survey_unmodified <- read.csv("server-survey-unmodified.csv")
+server_survey <- read.csv("server-survey.csv")
+tips
+server_survey_unmodified
+server_survey 
+```
+We will be using two data sets.The first of which is titled "tips". The "tips" dataset has data collected from one waiter and contains information about the person who is tipping. (244 rows) The second dataset is from a survey in which over 2,000 different servers were questioned about their largest tips and average tip percentage.
+
+MAIN QUESTION: The main question that we are looking to answer is "Are server tips determined by factors that are out of their control or by factors that servers are able to control such as attitude and effort?"
+
+Firstly, we need to mutate the data set to add a "tippct" column. It would be unfair to simply compare tips because of differences in total bill amounts.
+```{r}
+tips_with_pcttip <- tips %>%
+  mutate("pcttip" = tip/total_bill)
+tips_with_pcttip
+```
+Now, lets see what percentage people usually tip on any given day.
+```{r}
+tips_with_pcttip %>%
+  select(pcttip) %>%
+  summarize(avg = mean(pcttip)*100)
+avg_pct <- 16.08026
+```
+Answer: As you can see, the average tip percentage on any given day is around 16.1%.
+
+Now, let's see which sex (bill payer) gives the highest tips on average. 
+```{r}
+tip_pct_sex <- tips_with_pcttip%>%
+  select(pcttip, sex)%>%
+  group_by(sex)%>%
+  summarize("avg" = mean(pcttip)*100)
+tip_pct_sex
+```
+Answer: It appears that on average females tip a larger percent of their bill. (in comparison to the average tip percentage)
+
+We will now plot the data:
+Note: The horizontal line at y-intercept 16.08026 is the average percent tip for all rows.
+```{r}
+tip_pct_sex %>%
+  ggplot()+
+  geom_col(mapping = aes(x = sex, y = avg), color = "black", fill = "darkgray")+
+   geom_hline(yintercept = avg_pct, color = "red")+
+  ggtitle("Average Tip Percentage Based On Gender/Sex")+
+  xlab("Gender/Sex")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))
+  genderTree <- ctree(pcttip ~ sex, data = tips_with_pcttip)
+  genderTree
+  plot(genderTree)
+```
+
+Is there a correlation between meal time and tip size? (Do people tend to leave larger tips and dinner time or lunch time?)
+```{r}
+tippct_mealtime <- tips_with_pcttip %>%
+  select(time, pcttip)%>%
+  group_by(time)%>%
+  summarize("avg_tip_mealtime" = mean(pcttip)*100)
+tippct_mealtime
+```
+Answer: Overall, there does not seem to be a significant correlation between the time of the meal and pcttip as they only vary by around 1/2 a percent. From this dataset, people tend to leave larger tips at lunchtime. 
+
+We will now plot the data:
+```{r}
+tippct_mealtime %>%
+  ggplot()+
+  geom_col(mapping = aes(x = time, y = avg_tip_mealtime), color = "black", fill = "darkgray")+
+   geom_hline(yintercept = avg_pct, color = "red")+
+  ggtitle("Average Tip Percentage Based On Mealtime")+
+  xlab("Meal Time")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))
+
+timetree <- ctree(pcttip ~ time, data = tips_with_pcttip)
+  timetree
+plot(timetree)
+```
+
+What days do people give the largest tips?
+```{r}
+tips_with_pcttip_days <-
+tips_with_pcttip%>%
+  select(pcttip, day)%>%
+  group_by(day)%>%
+  summarize("pcttip_day" = mean(pcttip)*100)
+tips_with_pcttip_days
+```
+Answer: The highest tip percentages are given on Fridays and Sundays. It appears that the day has no correlation to whether one gives a larger or smaller tip.
+
+Plot data:
+```{r}
+tips_with_pcttip_days %>%
+  ggplot()+
+  geom_col(mapping = aes(x = day, y = pcttip_day), color = "black", fill = "darkgray")+
+   geom_hline(yintercept = avg_pct, color = "red")+
+ggtitle("Average Tip Percentage Based On Day")+
+  xlab("Day")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))
+
+daytree <- ctree(pcttip ~ day, data = tips_with_pcttip)
+daytree
+plot(daytree)
+```
+Is there a correlation between the tip amount and the group containing a smoker?
+```{r}
+smoker_tips <-
+  tips_with_pcttip%>%
+  select(pcttip,smoker)%>%
+  group_by(smoker)%>%
+  summarize("smoker_avg" = mean(pcttip)*100)
+smoker_tips
+```
+Answer: It appears that smokers do tend to give larger tips than those who do not smoke. However, the difference is so minimal that it does not have a large correlation with average tip percentage.
+
+Plot data:
+```{r}
+smoker_tips %>%
+  ggplot() + 
+  geom_col(mapping = aes(x = smoker, y = smoker_avg), color = "black", fill = "darkgray")+
+   geom_hline(yintercept = avg_pct, color = "red")+
+  ggtitle("Average Tip Percentage Based On Whether or Not A Smoker is Present")+
+  xlab("Smoker")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))
+
+smokertree <- ctree(pcttip ~ smoker, data = tips_with_pcttip)
+smokertree
+plot(smokertree)
+```
+Is there a correlation between party size and tip amount/percentage? 
+```{r}
+partysize_tips <-
+  tips_with_pcttip%>%
+  select(pcttip,size)%>%
+  group_by(size)%>%
+  summarize("size_tip_avg" = mean(pcttip)*100)
+partysize_tips
+```
+Answer: When looking at this plot it seems that there is a distinct curve in the the way people tip. For reference looking at a size of 1 results in the person giving higher tips then those in groups of 4 or 5. Then it rises again when it gets to 6. This could be because if its one person the total bill is relativly smaller and when a larger group of people comes the total bill is larger, and when they tip it seems that a larger percentage, for smaller groups, is going towards tips while the larger groups only seem that they give a smaller tip.
+
+Plot data:
+```{r}
+partysize_tips %>%
+  ggplot()+
+  geom_col(mapping = aes(x = size, y = size_tip_avg), color = "black", fill = "darkgray")+
+   geom_smooth(mapping = aes(x = size, y = size_tip_avg), color = "red", method = 'loess',se = FALSE)+
+  ggtitle("Average Tip Percentage Based On Party Size")+
+  xlab("Party Size")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))+
+  scale_x_continuous(breaks = seq(0, 6, by = 1))
+sizetree <- ctree(pcttip ~ size, data = tips_with_pcttip)
+sizetree
+plot(sizetree)
+```
+```{r}
+tips_with_pcttip%>%
+  ggplot()+
+  geom_point(mapping = aes(x = pcttip, y = total_bill))+
+  geom_smooth(mapping = aes(x = pcttip, y = total_bill),color = "red", se = FALSE, method = 'loess')+
+  ggtitle("Tip Percentage In Comparison to Total Bill")+
+  ylab("Total Bill")+
+  xlab("Tip Percentage")
+billtree <- ctree(pcttip ~ total_bill, data = tips_with_pcttip)
+billtree
+plot(billtree)
+```
+Now, lets plot the same graph and create the same tree except this time we will see the relation that these two variables has on size:
+```{r}
+tips_with_pcttip%>%
+  ggplot()+
+  geom_point(mapping = aes(x = pcttip, y = total_bill, color = size))+
+  geom_smooth(mapping = aes(x = pcttip, y = total_bill),color = "black", se = FALSE, method = 'loess')+
+  scale_color_gradientn(colors = rainbow(6))+
+  ggtitle("Tip Percentage In Comparison to Total Bill W/ Size")+
+  ylab("Total Bill")+
+  xlab("Tip Percentage")
+```
+Hmmmmm... it appears that this points appear to be form various clusters. Let's try clustering them...
+```{r}
+scaled_data<-tips_with_pcttip %>%
+  select(pcttip, total_bill)%>%
+  scale()
+scaled_data_dist <- scaled_data%>%
+  dist()%>%
+  hclust()%>%
+  as.dendrogram()%>%
+  set("labels_cex", .75)
+plot(cut(scaled_data_dist, h = 3.5)$lower[[2]], main = "Bottom Half of the Dendogram W/ a Cutoff at H=3.5")
+k10 <- kmeans(scaled_data, centers = 10, nstart = 25)
+fviz_cluster(k10, data = scaled_data, xlab = "Tip Percentage", ylab = "Total Bill", main = "K-Means Visualization")
+```
+
+Here we create a C tree to see which factors are significant in determining tip percentage:
+```{r}
+tips_with_pcttip <-
+tips_with_pcttip %>%
+  select(sex, smoker, day, time, size, total_bill, pcttip)
+tiptree <- ctree(pcttip ~ ., data = tips_with_pcttip)
+tiptree
+```
+
+```{r}
+plot(tiptree)
+```
+Interpretation: It appears that total bill and whether or not a smoker is in the party are the only variables which have any signifigance in the percent tip that the server receives.It appears that those who give smaller tips tend to give a larger percent tip which I find to be quite interesting. In addition, whether or not a smoker is in the group only appears to be significant when the total bill is higher than $26. 
+
+We will now begin using the "server survey" data set which goes much more in depth than the "tips" data set.
+
+We need to modify the data set to only include variables that are relevant to our tests/analyzation.
+```{r}
+server_survey%>%
+  select(-currentmonths,-extramonths,-asianproportion,-blackproportion,-hispanicproportion,-whiteproportion,-latenight,-busy,-comparative_tips,-effect_sz, -Men, -Women, -Teenagers, -Young_Adults, -Middle_Aged_Adults, -Elderly_Adults, -Cash_Customers, -Smokers, -Regulars, -First_Timers, -Asians, -Blacks, -Hispanics, -Whites, -Foreigners, -Couples, -onetops, -kids, -Business_People, -hair, -hair_other)
+server_survey <- server_survey%>%
+  filter(!is.na(pcttip) | pcttip != "")
+  
+```
+Let's see if the average tip percent is significantly different from that of our first data set.
+```{r}
+  server_survey%>%
+  select(pcttip)%>%
+  filter(!is.na(pcttip) | pcttip != "")%>%
+  summarize("average_percent_tip" = mean(pcttip))
+average_pct = 16.06172
+```
+The average tip percentage is very similar with it being 16.08026	 and the average tip percentage of this data set being 16.06172.
+
+Now let's see if restaurant location plays any role in determining how much a server is tipped...
+```{r}
+state_averages<-
+  server_survey %>%
+  filter(!is.na(pcttip) | pcttip != "")%>%
+  group_by(State)%>%
+  summarize("avg" = mean(pcttip))
+state_averages
+```
+Plot data:
+```{r}
+state_averages%>%
+  ggplot()+
+  geom_col(mapping = aes(x = State, y = avg), color = "black", fill = "darkgray")+
+  geom_hline(yintercept = avg_pct, color = "red")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Average Tip Percentage by State")+
+  ylab("Tip Percentage")
+```
+How significant is the difference between tip percentages of U.S. states and areas outside of the U.S.?
+```{r}
+server_survey%>%
+  select(State, pcttip)%>%
+  filter(State != "!US" & State != "NA" & (!is.na(pcttip) | pcttip != ""))%>%
+  summarize("USavg" = mean(pcttip))
+
+state_averages %>%
+  filter((!is.na(avg) | avg != "") & State == "!US")
+```
+WOW! It appears that the United States has a tipping average of around 5% higher than the rest of the world... very interesting!
+
+We will now see if there is a correlation between sex and tippct. (in this data set) - Adam
+```{r}
+#Note: We decided to filter out values for non-binary servers because there were only around three servers who identified as non-binary which skewed our results.
+tippct_sex<-
+server_survey%>%
+  filter((!is.na(pcttip) | pcttip != "") & (sex == "Male" | sex == "Female"))%>%
+  select(sex, pcttip)%>%
+  group_by(sex)%>%
+  summarize("avg_by_sex" = mean(pcttip))
+```
+Not much of a difference. The difference is only by around .04%. Howecver, it is interesting that females give the most tips as customers and also receive the most tips as servers.
+Plot data:- Adam
+```{r}
+tippct_sex %>%
+  ggplot()+
+  geom_col(mapping = aes(x = sex, y = avg_by_sex), color = "black", fill = "darkgray")+
+  geom_hline(yintercept = avg_pct, color = "red")+
+  ggtitle("Average Tip Percentage Based on Sex/Gender (Server Survey)")+
+  xlab("Sex")+
+  ylab("Percent Tip")
+
+sex_tree <- ctree(pcttip ~ sex, data = server_survey)
+sex_tree
+plot(sex_tree, type = "simple")
+```
+It appears that on average females receive higher tip percentages than males. It is interesting how similar this plot looks to the gender plot generated form the first data set.
+
+Is there a correlation between tips and bith year? 
+```{r}
+pcttip_birthyear<-
+server_survey%>%
+  select(birth_yr,pcttip)%>%
+  filter(birth_yr > 1900 & birth_yr <= 2019 & pcttip < 100)%>%
+  group_by(birth_yr)%>%
+  summarize("pcttip" = mean(pcttip))
+pcttip_birthyear
+```
+Plot data:
+```{r}
+pcttip_birthyear%>%
+  ggplot()+
+  geom_point(mapping = aes(x = birth_yr, y = pcttip), color = "black", fill = "red") +
+  geom_smooth(mapping = aes(x = birth_yr, y = pcttip), color = "red", se = FALSE, method = 'loess', formula = y~x)+
+  ggtitle("Average Tip Percentage Based on Birth Year")+
+  xlab("Birth Year")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))+
+  scale_x_continuous(breaks = seq(1940, 2000, by = 1))+ 
+  theme(axis.text.x = element_text(angle = 90))
+
+experience_tree <- ctree(pcttip ~ birth_yr, data = server_survey)
+experience_tree
+plot(experience_tree)
+```
+There does not appear to be a correlation between birthyear and the amount that a server receives in tip percentage. This is because as society we tend to tip 15-20% despite the age of the server.
+
+Now we will see if there is a correlation between years experience and tip percentage:
+```{r}
+experience_pcttip <- 
+server_survey%>%
+  select(yearsexperience,pcttip)%>%
+  group_by(yearsexperience)%>%
+  summarize(average_tip = mean(pcttip))%>%
+  arrange(desc(average_tip))
+experience_pcttip
+```
+Plot data:
+```{r}
+experience_pcttip%>%
+  filter((!is.na(average_tip) | average_tip != "") & (!is.na(yearsexperience) | yearsexperience != ""))%>%
+  ggplot()+
+  geom_point(mapping = aes(x= yearsexperience, y= average_tip))+
+  ggtitle("Average Tip Percentage Based on Years Experience")+
+  geom_hline(yintercept = 16.08026, color = "red")+
+  xlab("Years Experience")+
+  ylab("Tip Percentage")
+```
+There does not appear to be a correlation between years of experience and the average tip. As stated previously, this is most likely because as a society we are taught to tip 15-20%.
+
+Is there a correlation between happiness and a larger tip?
+```{r}
+happy_tips<-
+server_survey%>%
+  filter(happy >= 1 & happy <= 7)%>% #Simple way to filter out null values for the happy column of our data frame.
+  select(happy, pcttip)%>%
+  group_by(happy)%>%
+  summarize("tippct_happiness" = mean(pcttip))
+happy_tips
+```
+Plot data:
+```{r}
+happy_tips%>%
+  ggplot()+
+  geom_col(mapping = aes(x = happy, y = tippct_happiness), color = "black", fill = "darkgray")+
+  geom_smooth(mapping = aes(x = happy, y = tippct_happiness), method = "loess", formula = y~x, se = FALSE, color = "red")+
+  ggtitle("Average Tip Percentage Based on Happiness")+
+  xlab("Happiness")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 20, by = 1))+
+  scale_x_continuous(breaks = seq(1, 7, by = 1))
+```
+We will now see if there is a correlation between race and tip percentage: 
+```{r}
+# each number represents a different race, 1 being Asians, 2 being blacks, 3 hispanics, and 4 being white, with those that were in the other category seemingly being put with the white group.
+race_pcttip <- 
+server_survey%>%
+  select(race,pcttip)%>%
+  na.omit()
+race_pcttip
+```
+Plot data: 
+```{r}
+#As mentioned before the white group and other group has been joined for the most part except for a small amount that has been put in 5.
+race_pcttip%>%
+  filter(pcttip < 100)%>%
+  ggplot()+
+  geom_boxplot(mapping = aes(x= race, y= pcttip, group= 1))+
+  scale_y_continuous(breaks = seq(0, 70, by = 10))+
+  facet_wrap(.~race)
+```
+We will now see if there is a correlation between the server being married and tip percentage:
+```{r}
+average_married <-
+server_survey%>%
+  filter(married == 0 | married == 1)%>%
+  select(married, pcttip)%>%
+  group_by(married)%>%
+  summarize("married_avg" = mean(pcttip))
+average_married
+```
+Plot data:
+```{r}
+average_married %>%
+  ggplot()+
+  geom_col(mapping = aes(x = married , y = married_avg), color = "black", fill = "darkgray")+
+   geom_hline(yintercept = avg_pct, color = "red")+
+  ggtitle("Average Tip Percentage Based on Whether The Server is Married")+
+  xlab("Married")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 17, by = 1))+
+  scale_x_continuous(breaks = seq(0, 1, by = 1))
+#1 = Married
+#0 = Single
+```
+Answer: As suspected, it appears that whether or not someone is married does not affect their tip percentage. However, those who are married do appear to earn around .1% more than those who are not married.
+
+The dataset includes variables related to attitude. The scale of these qualities were rated on was 1 to 7 where 1 was "agree least" to 7 which was "strongly agree". These variables are used to describe the personalties and attitudes of the servers. The variables are convential_uncreative, calm_emotionally_stable, disorganized_careless, sympathetic_warm, reserved_quiet, open_to_new_experiences_complex, anxious_easily_upset, dependable_selfdisciplined, and critical_quarrelsome.
+
+We must first mutate the dataset to create an average attitude variable.
+```{r}
+server_survey
+server_survey_attitude <- server_survey %>%
+  mutate("attitude" = (Conventiol_uncreative + Calm_emotiolly_stable + Disorganized_careless + Sympathetic_warm + Reserved_quiet + Open_to_new_experiences_complex + Anxious_easily_upset + Dependable_selfdisciplined + Critical_quarrelsome)/9)
+server_survey_attitude
+```
+Create a regression tree in order to see which attitude factors are most significant in determining pct tip. 
+```{r}
+
+attitude_server_tree <- ctree(pcttip ~ Conventiol_uncreative + Calm_emotiolly_stable + Disorganized_careless + Sympathetic_warm + Reserved_quiet + Open_to_new_experiences_complex + Anxious_easily_upset + Dependable_selfdisciplined + Critical_quarrelsome, data = server_survey_attitude, na.action("exclude"))
+attitude_server_tree
+```
+Plot data: 
+```{r}
+#Tree too large to plot.
+plot(attitude_server_tree, type = "simple")
+```
+Now see which attitude factors/variables are most significant in determining big_tips.
+```{r}
+ effort_tree <- ctree(bigtips ~ Conventiol_uncreative + Calm_emotiolly_stable + Disorganized_careless + Sympathetic_warm + Reserved_quiet + Open_to_new_experiences_complex + Anxious_easily_upset + Dependable_selfdisciplined + Critical_quarrelsome, data = server_survey)
+effort_tree
+```
+Plot data: 
+```{r}
+plot(effort_tree, type = "simple")
+```
+
+The dataset includes variables related to effort. These variables are flair (waiter wore flair), intro (introduced themself by name), selling (tried suggestive selling), squatt (squatted next to the table), touch (touched customers), jokes(told jokes), repeat (repeated customers orders back to them), drew (drew pictures on checks), smile (gave bit smiles), thanks (wrote thanks on checks), weather (forcasted good weather), complement (complemented custoemrs on their food choice). These variables are all standardized on a scale from 1 to 4. Responses of 1 means they never use that method and a response of 4 means they always use that method.
+
+We must first mutate the server_survey data set to include an average effort variable.
+```{r}
+server_survey_effort <- server_survey %>%
+  mutate("effort" = (flair + intro + selling + squatt + touch + jokes + repeat. + customer_me + draw + smile + thanks + weather + compliment)/13)
+server_survey_effort
+```
+
+We will now see if there is a correlation between higher effort and a larger tip. 
+```{r}
+server_survey_effort_pcttip <-
+server_survey_effort %>%
+  filter((!is.na(pcttip) | pcttip != "") & (!is.na(effort) | effort != ""))%>%
+  select(effort, pcttip)%>%
+  group_by(effort)%>%
+  summarize("avg_pcttip" = mean(pcttip))
+server_survey_effort_pcttip
+```
+Plot data:
+```{r}
+server_survey_effort_pcttip %>%
+  ggplot() + 
+  geom_point(mapping = aes(x = effort, y = avg_pcttip), color = "black", fill = "red")+
+   geom_smooth(mapping = aes(x = effort, y = avg_pcttip), color = "red", se = FALSE, method = 'loess', formula = y~x)+ 
+  ggtitle("Average Tip Percentage Based on Effort")+
+  xlab("Effort")+
+  ylab("Tip Percentage")+
+  scale_y_continuous(breaks = seq(0, 36, by = 3))+
+  scale_x_continuous(breaks = seq(1, 4, by = 1))
+```
+
+Create a c tree in order to see which effort factors are most significant in determining pct tip.
+```{r}
+effort_tree_pct <- ctree(pcttip ~ flair + intro + selling + squatt + touch + jokes + repeat. + customer_me + draw + smile + thanks + weather + compliment, data = server_survey)
+effort_tree_pct
+```
+Plot data:
+```{r}
+#Tree too large to plot.
+plot(effort_tree_pct, type = "simple")
+```
+
+Now see which effort factors/variables are most significant in determining big_tips. 
+```{r}
+effort_tree <- ctree(bigtips ~ flair + intro + selling + squatt + touch + jokes + repeat. + customer_me + draw + smile + thanks + weather + compliment, data = server_survey)
+effort_tree
+```
+Plot data:
+```{r}
+#Tree too large to plot.
+plot(effort_tree, type = "simple")
+```
+```{r}
+test_dataframe <-
+server_survey %>%
+  select(pcttip, flair, intro, selling, squatt, touch, jokes, repeat., customer_me, draw, smile, thanks, weather, compliment,  Conventiol_uncreative, Calm_emotiolly_stable, Disorganized_careless, Sympathetic_warm, Reserved_quiet, Open_to_new_experiences_complex, Anxious_easily_upset, Dependable_selfdisciplined, Critical_quarrelsome)
+test_dataframe
+```
+We will now see which variables (both attitude and effort) contribute most to the average tip percentage using a c tree:
+```{r}
+effort_and_attitude_tree <- ctree(pcttip ~ ., data = test_dataframe)
+effort_and_attitude_tree
+```
+Plot data: 
+```{r}
+plot(effort_and_attitude_tree)
+```
+We are unable to perform any training using machine learning because it appears that there aren't any factors that show substantial significance.
+
+Conclusion: It appears that despite external factors and how good a server/waiter is, as a society we have been trained to tip 15%-20% despite how good or bad the service is.
