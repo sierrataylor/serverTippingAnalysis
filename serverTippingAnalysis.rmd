@@ -46,9 +46,9 @@ Answer: As you can see, the average tip percentage on any given day is around 16
 
 Now, let's see which sex (bill payer) gives the highest tips on average. 
 ```{r}
-tip_pct_sex <- tips_with_pcttip%>%
-  select(pcttip, sex)%>%
-  group_by(sex)%>%
+tip_pct_sex <- tips_with_pcttip %>%
+  select(pcttip, sex) %>%
+  group_by(sex) %>%
   summarize("avg" = mean(pcttip)*100)
 tip_pct_sex
 ```
